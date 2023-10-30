@@ -4,6 +4,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow import keras
+from keras.models import clone_model
 
 # Constants
 DATA_PATH = '../data/Raw/logRaws/'
@@ -45,18 +46,49 @@ else:
     # Split into training and test sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Define model
-    model = keras.models.Sequential([
+    # Define Conv1D model
+    model1 = keras.models.Sequential([
         keras.layers.Input(shape=(SEQUENCE_LENGTH, 1)),
         keras.layers.Conv1D(filters=64, kernel_size=3, activation='relu', padding='same'),
         keras.layers.Dense(1)
     ])
 
-    # Compile model
+    # Define LSTM model
+    model2 = keras.models.Sequential([
+        keras.layers.Input(shape=(SEQUENCE_LENGTH, 1)),
+        keras.layers.LSTM(64, return_sequences=True),
+        keras.layers.Dropout(0.2),
+        keras.layers.LSTM(32),
+        keras.layers.Dense(1)
+    ])
+
+    # Clone models for comparison
+    model1_clone = clone_model(model1)
+    model2_clone = clone_model(model2)
+
+    # Compile models
+    model1_clone.compile(optimizer='adam', loss='mse', metrics=['mae'])
+    model2_clone.compile(optimizer='adam', loss='mse', metrics=['mae'])
+
+    # Train models
+    history1 = model1_clone.fit(X_train, y_train, epochs=10, batch_size=32, validation_data=(X_test, y_test))
+    history2 = model2_clone.fit(X_train, y_train, epochs=10, batch_size=32, validation_data=(X_test, y_test))
+
+    # Evaluate models
+    loss1, mae1 = model1_clone.evaluate(X_test, y_test)
+    loss2, mae2 = model2_clone.evaluate(X_test, y_test)
+
+    # Choose the better model
+    if loss1 < loss2:
+        model = model1
+    else:
+        model = model2
+
+    # Compile the better model
     model.compile(optimizer='adam', loss='mse', metrics=['mae'])
 
-    # Train model
+    # Train the better model
     model.fit(X_train, y_train, epochs=10, batch_size=32, validation_data=(X_test, y_test))
 
-    # Evaluate model
+    # Evaluate the better model
     model.evaluate(X_test, y_test)
